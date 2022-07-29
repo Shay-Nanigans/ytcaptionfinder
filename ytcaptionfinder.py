@@ -128,11 +128,18 @@ if __name__== "__main__":
 
 
     errors = [] #we can throw errors later. some threads may have actually done some work
-    with open(f"matches{datetime.now().timestamp()}.txt","w") as f: #output file
+    fn = f"matches_{''.join(ch for ch in searchstring if ch.isalnum())}_{datetime.now().timestamp()}.txt"
+    matchcount = 0
+    with open(fn,"w") as f: #output file
         for matches in matchset:
             if isinstance(matches, ExceptionWrapper):
                 errors.append(matches)
             else:
                 f.writelines(matches)
+                matchcount = matchcount + len(matches)
+    print("=====================================")
+    print(f"{matchcount} matches to \"{searchstring}\" found!")
+    print(f"Written to file: {fn}")
+    print("=====================================")
     for error in errors:
         error.re_raise()
