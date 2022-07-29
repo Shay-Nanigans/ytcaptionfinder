@@ -31,7 +31,7 @@ def getMatchUrls(strurlpair):
 
         ydl_opts = {
                     'outtmpl': f"{os.getcwd()}/temp/{urlname}/%(id)s.%(ext)s", 
-                    'download_archive':os.join(f"{os.getcwd()}/temp/{urlname}/",'dl.txt'),
+                    'download_archive':f"{os.getcwd()}/temp/{urlname}/dl.txt",
                     'format' : "mhtml", #i cant figure out how not to download something and this seems to be the smallest
                     'writesubtitles': True, 
                     'writeautomaticsub': True, 
@@ -63,7 +63,7 @@ def getMatchUrls(strurlpair):
                     if "segs" in event:
                         for seg in event["segs"]:
                             if seg["utf8"] != "\n": #newline is cursed for autocaptioned video
-                                thisline = seg["utf8"].strip().replace("  ", " ") + " "
+                                thisline = re.sub(r'[^A-Za-z0-9 ]+', '', seg["utf8"]).strip().replace("  ", " ") + " "
                                 lines.append([charcount,int(event["tStartMs"]/1000)]) #builds a list of charactercount, timestamp pairs for all the segments
                                 charcount = charcount + len(thisline)
                                 script = script + thisline
@@ -114,7 +114,10 @@ if __name__== "__main__":
     #make folders
     if not os.path.exists(f"temp/"): os.makedirs(f"temp/")
     for url in urls:
-        if not os.path.exists(f"temp/{url[2]}/"): os.makedirs(f"temp/{url[2]}/")
+        if len(url)==3:
+            if not os.path.exists(f"temp/{url[2]}/"): os.makedirs(f"temp/{url[2]}/")
+        elif len(url)==2:
+            if not os.path.exists(f"temp/{url[1]}/"): os.makedirs(f"temp/{url[1]}/")
 
     #multithread fetching
     if len(urls) < 32: threadcount = len(urls) 
