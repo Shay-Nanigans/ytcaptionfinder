@@ -17,39 +17,55 @@ class ExceptionWrapper(object):
     def re_raise(self):
         raise self.ee.with_traceback(self.tb)
 
-#takes a tuple (searchstring, url, urlname) or a tuple (searchstring, url), downloads all the captions and returns a list of youtube links with the 
-def getMatchUrls(strurlpair):
-    try:
-        if len(strurlpair) == 3:
-            searchstring, url, urlname = strurlpair
-        else:
-            searchstring, url = strurlpair
-            urlname = ''.join(ch for ch in url if ch.isalnum())
+def getIdList(url):
+    ydl_opts = {
+            'dump_single_json':True,
+            'extract_flat':True,
+            'skip_download':True,
+        }
+    with yt_dlp.YoutubeDL(ydl_opts) as yt:
+        result = yt.extract_info( url,False)
+    if 'entries' in result:
+        results = []
+        for item in result['entries']:
+            results.append(item['id'])
+        return results
+    else:
+        return [result['id']]
 
+
+
+#takes a id and a string and downloads all the captions and returns a list of youtube links with the 
+def getMatchUrls(args):
+    id, searchstring, usedids =args
+    try:
         #compiles the regex pattern to search
         searchstring = re.compile(rf"{searchstring}")
 
         ydl_opts = {
-                    'outtmpl': f"{os.getcwd()}/temp/{urlname}/%(id)s.%(ext)s", 
-                    'download_archive':f"{os.getcwd()}/temp/{urlname}/dl.txt",
-                    'format' : "mhtml", #i cant figure out how not to download something and this seems to be the smallest
+                    'outtmpl': f"{os.getcwd()}/temp/%(id)s.%(ext)s", 
+                    # 'download_archive':f"{os.getcwd()}/temp/dl.txt",
                     'writesubtitles': True, 
                     'writeautomaticsub': True, 
                     'subtitlesformat':"json3",
-                    'ignoreerrors':True
+                    'skip_download':True,
+                    'nooverwrites':True
 
                 }
 
-        yt = yt_dlp.YoutubeDL(ydl_opts)
-        yt.download(url)
+        if f"{id}\n" not in usedids:
+            yt = yt_dlp.YoutubeDL(ydl_opts)
+            yt.download(id)
+            open('temp/ids.txt','a').write(f'{id}\n')
 
         matches = []
 
         #searches everything it just downloaded for the string
-        for file in os.listdir(f"temp/{urlname}/"): #right now it puts the threads into its own folder. theoretically it would be better to put them together but looking through a directory is easier
+        for file in os.listdir(f"temp/"):
             if ".json3" not in file: continue
+            if id not in file: continue
             print(file)
-            with open(f"temp/{urlname}/{file}","r",encoding="utf8", errors='ignore') as f: #open the file
+            with open(f"temp/{file}","r",encoding="utf8", errors='ignore') as f: #open the file
                 total = 0
                 lines = []
                 j = json.load(f)
@@ -78,9 +94,9 @@ def getMatchUrls(strurlpair):
                             break
                     if len(lines) > lineplace:
                         if lineplace == 0:
-                            matches.append(f"https://youtu.be/{file.split('.')[0]}?t={lines[lineplace][1]}\n")
+                            matches.append(f"https://youtu.be/{id}?t={lines[lineplace][1]}\n")
                         else:
-                            matches.append(f"https://youtu.be/{file.split('.')[0]}?t={lines[lineplace-1][1]}\n")
+                            matches.append(f"https://youtu.be/{id}?t={lines[lineplace-1][1]}\n")
         return matches
     except Exception as e:
         return ExceptionWrapper(e)
@@ -96,44 +112,38 @@ if __name__== "__main__":
             urls.append([searchstring,line.strip().strip("\n")])
     else:
         for arg in sys.argv[2:]:
-            urlname = None
-            if "?list=" in arg:
-                url = arg.split("?list=")[1]
-            elif "?v=" in arg:
-                url = arg.split("?v=")[1]
-            elif "/c/" in arg:
-                url = arg
-                urlname = arg.split("/c/")[1]
-            else:
-                url = arg
-            if urlname:
-                urls.append([searchstring,url,urlname])
-            else:
-                urls.append([searchstring,url,url])
+            urls.append(arg)
 
     #make folders
     if not os.path.exists(f"temp/"): os.makedirs(f"temp/")
+    if not os.path.exists(f"temp/ids.txt"): open(f"temp/ids.txt", 'w'). close()
+    
+    ids = []
+    usedids = open('temp/ids.txt').readlines()
     for url in urls:
-        if len(url)==3:
-            if not os.path.exists(f"temp/{url[2]}/"): os.makedirs(f"temp/{url[2]}/")
-        elif len(url)==2:
-            if not os.path.exists(f"temp/{url[1]}/"): os.makedirs(f"temp/{url[1]}/")
+        ids = ids + getIdList(url)
+    for i in range(len(ids)):
+        ids[i]= (ids[i],searchstring, usedids)
 
     #multithread fetching
-    if len(urls) < 32: threadcount = len(urls) 
+    if len(ids) < 32: threadcount = len(ids) 
     else: threadcount = 32 
 
     with Pool(threadcount) as p:
-        matchset = p.map(getMatchUrls, urls)
+        matchset = p.map(getMatchUrls, ids)
 
 
-    errors = [] #we can throw errors later. some threads may have actually done some work
+    errors = {} #we can throw errors later. some threads may have actually done some work
     fn = f"matches_{''.join(ch for ch in searchstring if ch.isalnum())}_{datetime.now().timestamp()}.txt"
     matchcount = 0
     with open(fn,"w") as f: #output file
         for matches in matchset:
             if isinstance(matches, ExceptionWrapper):
-                errors.append(matches)
+                try:
+                    matches.re_raise()
+                except Exception as e:
+                    if not str(type(e)) in errors: errors[str(type(e))] = []
+                    errors[str(type(e))].append(e)
             else:
                 f.writelines(matches)
                 matchcount = matchcount + len(matches)
@@ -141,5 +151,8 @@ if __name__== "__main__":
     print(f"{matchcount} matches to \"{searchstring}\" found!")
     print(f"Written to file: {fn}")
     print("=====================================")
+    print(errors.keys())
     for error in errors:
-        error.re_raise()
+        for item in errors[error]:
+            print("=====================================")
+            print(item)
