@@ -40,7 +40,7 @@ def getMatchUrls(args):
     id, searchstring, usedids =args
     try:
         #compiles the regex pattern to search
-        searchstring = re.compile(rf"{searchstring}")
+        searchstring = re.compile(rf"{searchstring}", re.IGNORECASE)
 
         ydl_opts = {
                     'outtmpl': f"{os.getcwd()}/temp/%(id)s.%(ext)s", 
