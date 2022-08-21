@@ -1,5 +1,4 @@
 from datetime import datetime
-from gettext import find
 from multiprocessing import Pool
 import sys
 import yt_dlp
@@ -37,6 +36,7 @@ def getIdList(url):
 
 #takes a id and a string and downloads all the captions and returns a list of youtube links with the 
 def getMatchUrls(args):
+    '''args = [id, searchstring, usedids]'''
     id, searchstring, usedids =args
     try:
         #compiles the regex pattern to search
@@ -94,12 +94,49 @@ def getMatchUrls(args):
                             break
                     if len(lines) > lineplace:
                         if lineplace == 0:
-                            matches.append(f"https://youtu.be/{id}?t={lines[lineplace][1]}\n")
+                            matches.append(f"https://youtu.be/{id}?t={lines[lineplace][1]}")
                         else:
-                            matches.append(f"https://youtu.be/{id}?t={lines[lineplace-1][1]}\n")
+                            matches.append(f"https://youtu.be/{id}?t={lines[lineplace-1][1]}")
         return matches
     except Exception as e:
         return ExceptionWrapper(e)
+
+
+def findList(searchstring:str, urls:list):
+    #make folders
+    if not os.path.exists(f"temp/"): os.makedirs(f"temp/")
+    if not os.path.exists(f"temp/ids.txt"): open(f"temp/ids.txt", 'w'). close()
+    
+    #id fetching
+    ids = []
+    usedids = open('temp/ids.txt').readlines()
+    with Pool(len(urls)) as p:
+        idlistlist = p.map(getIdList, urls)
+    for idlist in idlistlist:
+        ids = ids + idlist
+    for i in range(len(ids)):
+        ids[i]= (ids[i],searchstring, usedids)
+
+    #multithread fetching
+    if len(ids) < 32: threadcount = len(ids) 
+    else: threadcount = 32 
+
+    with Pool(threadcount) as p:
+        matchset = p.map(getMatchUrls, ids)
+
+
+    errors = {} #we can throw errors later. some threads may have actually done some work
+    matches = []
+    for match in matchset:
+        if isinstance(matches, ExceptionWrapper):
+            try:
+                matches.re_raise()
+            except Exception as e:
+                if not str(type(e)) in errors: errors[str(type(e))] = []
+                errors[str(type(e))].append(e)
+        else:
+            matches = matches + match
+    return matches, errors
 
 
 if __name__== "__main__":
@@ -114,41 +151,14 @@ if __name__== "__main__":
         for arg in sys.argv[2:]:
             urls.append(arg)
 
-    #make folders
-    if not os.path.exists(f"temp/"): os.makedirs(f"temp/")
-    if not os.path.exists(f"temp/ids.txt"): open(f"temp/ids.txt", 'w'). close()
-    
-    ids = []
-    usedids = open('temp/ids.txt').readlines()
-    for url in urls:
-        ids = ids + getIdList(url)
-    for i in range(len(ids)):
-        ids[i]= (ids[i],searchstring, usedids)
-
-    #multithread fetching
-    if len(ids) < 32: threadcount = len(ids) 
-    else: threadcount = 32 
-
-    with Pool(threadcount) as p:
-        matchset = p.map(getMatchUrls, ids)
-
-
-    errors = {} #we can throw errors later. some threads may have actually done some work
+    matches, errors = findList(searchstring, urls)
     fn = f"matches_{''.join(ch for ch in searchstring if ch.isalnum())}_{datetime.now().timestamp()}.txt"
-    matchcount = 0
-    with open(fn,"w") as f: #output file
-        for matches in matchset:
-            if isinstance(matches, ExceptionWrapper):
-                try:
-                    matches.re_raise()
-                except Exception as e:
-                    if not str(type(e)) in errors: errors[str(type(e))] = []
-                    errors[str(type(e))].append(e)
-            else:
-                f.writelines(matches)
-                matchcount = matchcount + len(matches)
+    with open(fn,"w") as f: #output file      
+        for match in matches:
+            f.write(match+"\n")   
+
     print("=====================================")
-    print(f"{matchcount} matches to \"{searchstring}\" found!")
+    print(f"{len(matches)} matches to \"{searchstring}\" found!")
     print(f"Written to file: {fn}")
     print("=====================================")
     print(errors.keys())
