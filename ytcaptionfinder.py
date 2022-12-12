@@ -36,6 +36,15 @@ def getIdList(url):
 
 #takes a id and a string and downloads all the captions and returns a list of youtube links with the 
 def getMatchUrls(args):
+    urls = []
+    times = findPhraseTime(args)
+    if isinstance(times, ExceptionWrapper):
+        return times
+    for url in times:
+        urls.append(f"https://youtu.be/{url[0]}?t={int(url[1])}")
+    return urls
+
+def findPhraseTime(args):
     '''args = [id, searchstring, usedids]'''
     id, searchstring, usedids =args
     try:
@@ -80,7 +89,10 @@ def getMatchUrls(args):
                         for seg in event["segs"]:
                             if seg["utf8"] != "\n": #newline is cursed for autocaptioned video
                                 thisline = re.sub(r'[^A-Za-z0-9 ]+', '', seg["utf8"]).strip().replace("  ", " ") + " "
-                                lines.append([charcount,int(event["tStartMs"]/1000)]) #builds a list of charactercount, timestamp pairs for all the segments
+                                if "tOffsetMs" in seg:#builds a list of charactercount, timestamp pairs for all the segments
+                                    lines.append([charcount,(float(event["tStartMs"]/1000) + float(seg["tOffsetMs"]/1000))]) 
+                                else:    
+                                    lines.append([charcount,float(event["tStartMs"]/1000)]) 
                                 charcount = charcount + len(thisline)
                                 script = script + thisline
                 
@@ -94,9 +106,11 @@ def getMatchUrls(args):
                             break
                     if len(lines) > lineplace:
                         if lineplace == 0:
-                            matches.append(f"https://youtu.be/{id}?t={lines[lineplace][1]}")
+                            matches.append([id, lines[lineplace][1]])
+                            # matches.append(f"https://youtu.be/{id}?t={lines[lineplace][1]}")
                         else:
-                            matches.append(f"https://youtu.be/{id}?t={lines[lineplace-1][1]}")
+                            matches.append([id, lines[lineplace-1][1]])
+                            # matches.append(f"https://youtu.be/{id}?t={lines[lineplace-1][1]}")
         return matches
     except Exception as e:
         return ExceptionWrapper(e)
@@ -128,9 +142,9 @@ def findList(searchstring:str, urls:list):
     errors = {} #we can throw errors later. some threads may have actually done some work
     matches = []
     for match in matchset:
-        if isinstance(matches, ExceptionWrapper):
+        if isinstance(match, ExceptionWrapper):
             try:
-                matches.re_raise()
+                match.re_raise()
             except Exception as e:
                 if not str(type(e)) in errors: errors[str(type(e))] = []
                 errors[str(type(e))].append(e)
