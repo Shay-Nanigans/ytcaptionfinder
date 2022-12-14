@@ -120,7 +120,11 @@ def findList(searchstring:str, urls:list):
     #make folders
     if not os.path.exists(f"temp/"): os.makedirs(f"temp/")
     if not os.path.exists(f"temp/ids.txt"): open(f"temp/ids.txt", 'w'). close()
-    
+    newurls = []
+    for url in urls:
+        for item in cleanInput(url):
+            newurls.append(item)
+    urls = newurls
     #id fetching
     ids = []
     usedids = open('temp/ids.txt').readlines()
@@ -152,6 +156,16 @@ def findList(searchstring:str, urls:list):
             matches = matches + match
     return matches, errors
 
+def cleanInput(url:str)->list:
+    urls = []
+    #cleans channel
+    m = re.search(r"/(@|channel/|c/|user/)(\S*)/*$", url)
+    if m:
+        urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/shorts")
+        urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/videos")
+
+    if urls == []:return [url]
+    else: return urls
 
 if __name__== "__main__":
     #argparse when?
