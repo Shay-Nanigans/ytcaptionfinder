@@ -22,8 +22,12 @@ def getIdList(url):
             'extract_flat':True,
             'skip_download':True,
         }
-    with yt_dlp.YoutubeDL(ydl_opts) as yt:
-        result = yt.extract_info( url,False)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as yt:
+            result = yt.extract_info( url,False)
+    except Exception as e:
+        print(e)
+        return []
     if 'entries' in result:
         results = []
         for item in result['entries']:
