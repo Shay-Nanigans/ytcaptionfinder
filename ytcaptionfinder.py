@@ -39,10 +39,14 @@ def getIdList(url):
 
 
 #takes a id and a string and downloads all the captions and returns a list of youtube links with the 
-def toUrls(times):
+def toUrls(times, endtime:bool=False):
     urls = []
-    for url in times:
-        urls.append(f"https://youtu.be/{url[0]}?t={int(url[1])}")
+    if endtime:
+        for url in times:
+            urls.append(f"https://youtu.be/{url[0]} {url[1]} {url[2]}")
+    else:
+        for url in times:
+            urls.append(f"https://youtu.be/{url[0]}?t={int(url[1])}")
     return urls
 
 def findPhraseTime(args):
@@ -189,7 +193,7 @@ if __name__== "__main__":
             urls.append(arg)
 
     matches, errors = findList(searchstring, urls)
-    matches = toUrls(matches)
+    matches = toUrls(matches, endtime=True)
 
     fn = f"matches_{''.join(ch for ch in searchstring if ch.isalnum())}_{datetime.now().timestamp()}.txt"
     with open(fn,"w") as f: #output file      
