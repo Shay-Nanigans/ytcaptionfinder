@@ -39,11 +39,8 @@ def getIdList(url):
 
 
 #takes a id and a string and downloads all the captions and returns a list of youtube links with the 
-def getMatchUrls(args):
+def toUrls(times):
     urls = []
-    times = findPhraseTime(args)
-    if isinstance(times, ExceptionWrapper):
-        return times
     for url in times:
         urls.append(f"https://youtu.be/{url[0]}?t={int(url[1])}")
     return urls
@@ -103,17 +100,24 @@ def findPhraseTime(args):
                 #finds all the matches and when in the video it happens
                 for m in re.finditer(searchstring,script):
                     print(m)
-                    lineplace = 0
-                    while(m.start()>lines[lineplace][0]):
-                        lineplace = lineplace + 1
-                        if len(lines) == lineplace:
+                    startplace = 0
+                    while(m.start()>lines[startplace][0]):
+                        startplace = startplace + 1
+                        if len(lines) == startplace:
                             break
-                    if len(lines) > lineplace:
-                        if lineplace == 0:
-                            matches.append([id, lines[lineplace][1]])
+
+                    endplace = 0
+                    while(m.end()>lines[endplace][0]):
+                        endplace = endplace + 1
+                        if len(lines) == endplace:
+                            break
+
+                    if len(lines) > endplace:
+                        if startplace == 0:
+                            matches.append([id, lines[startplace][1],lines[endplace][1]])
                             # matches.append(f"https://youtu.be/{id}?t={lines[lineplace][1]}")
                         else:
-                            matches.append([id, lines[lineplace-1][1]])
+                            matches.append([id, lines[startplace-1][1],lines[endplace][1]])
                             # matches.append(f"https://youtu.be/{id}?t={lines[lineplace-1][1]}")
         return matches
     except Exception as e:
@@ -140,11 +144,12 @@ def findList(searchstring:str, urls:list):
         ids[i]= (ids[i],searchstring, usedids)
 
     #multithread fetching
-    if len(ids) < 32: threadcount = len(ids) 
+    if len(ids) == 0: threadcount = 1
+    elif len(ids) < 32: threadcount = len(ids) 
     else: threadcount = 32 
 
     with Pool(threadcount) as p:
-        matchset = p.map(getMatchUrls, ids)
+        matchset = p.map(findPhraseTime, ids)
 
 
     errors = {} #we can throw errors later. some threads may have actually done some work
@@ -184,6 +189,8 @@ if __name__== "__main__":
             urls.append(arg)
 
     matches, errors = findList(searchstring, urls)
+    matches = toUrls(matches)
+
     fn = f"matches_{''.join(ch for ch in searchstring if ch.isalnum())}_{datetime.now().timestamp()}.txt"
     with open(fn,"w") as f: #output file      
         for match in matches:
