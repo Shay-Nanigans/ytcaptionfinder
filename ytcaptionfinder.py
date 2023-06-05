@@ -176,6 +176,7 @@ def cleanInput(url:str)->list:
     if m:
         urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/shorts")
         urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/videos")
+        urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/streams")
 
     if urls == []:return [url]
     else: return urls
