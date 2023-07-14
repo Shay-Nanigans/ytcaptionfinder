@@ -28,13 +28,14 @@ def getIdList(url):
     except Exception as e:
         print(e)
         return []
+    # 
     if 'entries' in result:
         results = []
         for item in result['entries']:
-            results.append(item['id'])
+            results.append(item)
         return results
     else:
-        return [result['id']]
+        return [result]
 
 
 
@@ -132,21 +133,27 @@ def findList(searchstring:str, urls:list):
     #make folders
     if not os.path.exists(f"temp/"): os.makedirs(f"temp/")
     if not os.path.exists(f"temp/ids.txt"): open(f"temp/ids.txt", 'w'). close()
-    newurls = []
-    for url in urls:
-        for item in cleanInput(url):
-            newurls.append(item)
-    urls = newurls
+    # newurls = []
+    # for url in urls:
+    #     for item in cleanInput(url):
+    #         newurls.append(item)
+    # urls = newurls
     #id fetching
     ids = []
     usedids = open('temp/ids.txt').readlines()
-    with Pool(len(urls)) as p:
-        idlistlist = p.map(getIdList, urls)
-    for idlist in idlistlist:
-        ids = ids + idlist
-    for i in range(len(ids)):
-        ids[i]= (ids[i],searchstring, usedids)
-
+    while len(urls)>0:
+        with Pool(len(urls)) as p:
+            idlistlist = p.map(getIdList, urls)
+        urls = []
+        for idlist in idlistlist:
+            for id in idlist:
+                if 'entries' in id:
+                    urls.append(id["webpage_url"])
+                else:
+                    ids.append(id["id"])
+        for i in range(len(ids)):
+            ids[i]= (ids[i],searchstring, usedids)
+    print(f'LIST LENGTH: {len(ids)}')
     #multithread fetching
     if len(ids) == 0: threadcount = 1
     elif len(ids) < 32: threadcount = len(ids) 
@@ -169,17 +176,17 @@ def findList(searchstring:str, urls:list):
             matches = matches + match
     return matches, errors
 
-def cleanInput(url:str)->list:
-    urls = []
-    #cleans channel
-    m = re.search(r"/(@|channel/|c/|user/)(\S*)/*$", url)
-    if m:
-        urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/shorts")
-        urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/videos")
-        urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/streams")
+# def cleanInput(url:str)->list:
+#     urls = []
+#     #cleans channel
+#     m = re.search(r"/(@|channel/|c/|user/)(\S*)/*$", url)
+#     if m:
+#         urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/shorts")
+#         urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/videos")
+#         urls.append(f"https://www.youtube.com/{m.group(1)}{m.group(2)}/streams")
 
-    if urls == []:return [url]
-    else: return urls
+#     if urls == []:return [url]
+#     else: return urls
 
 if __name__== "__main__":
     #argparse when?
